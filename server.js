@@ -79,7 +79,7 @@ async function exchangeCode(code) {
         const req = https.request(options, res => {
             let data = '';
             res.on('data', c => data += c);
-            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON from osu! token endpoint')); } });
+            res.on('end', () => { console.log('osu! token response status:', res.statusCode, 'body:', data); try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON from osu! token endpoint')); } });
         });
         req.on('error', reject);
         req.write(payload);
