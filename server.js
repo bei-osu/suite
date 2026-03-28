@@ -3,20 +3,31 @@
 // Notes/chat/users/history → in-memory (ephemeral, fine for collab sessions)
 //
 // Required env vars on Render:
-//   GITHUB_TOKEN  — Personal Access Token with "repo" scope
-//   GITHUB_REPO   — e.g. "yourusername/osu-reviews-data"
-//   REVIEW_TOKEN  — (optional) token required to POST reviews
+//   GITHUB_TOKEN      — Personal Access Token with "repo" scope
+//   GITHUB_REPO       — e.g. "yourusername/osu-reviews-data"
+//   REVIEW_TOKEN      — (optional) token required to POST reviews
+//   OSU_CLIENT_ID     — OAuth app client ID
+//   OSU_CLIENT_SECRET — OAuth app client secret
+//   REDIRECT_URI      — https://your-render-app.onrender.com/auth/callback
+//   SESSION_SECRET    — any random string
 
-const http = require('http');
+const http  = require('http');
 const https = require('https');
 
-const PORT         = process.env.PORT         || 3000;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
-const GITHUB_REPO  = process.env.GITHUB_REPO  || '';
-const REVIEW_TOKEN = process.env.REVIEW_TOKEN || '';
+const PORT             = process.env.PORT             || 3000;
+const GITHUB_TOKEN     = process.env.GITHUB_TOKEN     || '';
+const GITHUB_REPO      = process.env.GITHUB_REPO      || '';
+const REVIEW_TOKEN     = process.env.REVIEW_TOKEN     || '';
+const OSU_CLIENT_ID    = process.env.OSU_CLIENT_ID    || '';
+const OSU_CLIENT_SECRET= process.env.OSU_CLIENT_SECRET|| '';
+const REDIRECT_URI     = process.env.REDIRECT_URI     || '';
+const SESSION_SECRET   = process.env.SESSION_SECRET   || 'changeme';
 
 if (!GITHUB_TOKEN || !GITHUB_REPO) {
     console.warn('⚠  GITHUB_TOKEN or GITHUB_REPO not set — reviews will NOT persist across restarts!');
+}
+if (!OSU_CLIENT_ID || !OSU_CLIENT_SECRET || !REDIRECT_URI) {
+    console.warn('⚠  OSU_CLIENT_ID / OSU_CLIENT_SECRET / REDIRECT_URI not set — login will not work!');
 }
 
 // ─── In-memory stores (ephemeral) ─────────────────────────────────────────────
@@ -26,6 +37,77 @@ const mem = {
     users:   [],
     history: [],
 };
+
+// ─── Sessions: token → { userId, username, avatarUrl, expiresAt } ─────────────
+const sessions = new Map();
+
+function makeSessionToken() {
+    const arr = [];
+    for (let i = 0; i < 32; i++) arr.push(Math.floor(Math.random() * 256));
+    return Buffer.from(arr).toString('hex');
+}
+
+function getSession(req) {
+    const auth = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+    if (!auth) return null;
+    const s = sessions.get(auth);
+    if (!s) return null;
+    if (s.expiresAt < Date.now()) { sessions.delete(auth); return null; }
+    return s;
+}
+
+// ─── osu! OAuth helpers ────────────────────────────────────────────────────────
+async function exchangeCode(code) {
+    return new Promise((resolve, reject) => {
+        const payload = JSON.stringify({
+            client_id:     OSU_CLIENT_ID,
+            client_secret: OSU_CLIENT_SECRET,
+            code,
+            grant_type:    'authorization_code',
+            redirect_uri:  REDIRECT_URI,
+        });
+        const options = {
+            hostname: 'osu.ppy.sh',
+            path:     '/oauth/token',
+            method:   'POST',
+            headers: {
+                'Content-Type':   'application/json',
+                'Content-Length': Buffer.byteLength(payload),
+                'User-Agent':     'osu-collab-server',
+            },
+        };
+        const req = https.request(options, res => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON from osu! token endpoint')); } });
+        });
+        req.on('error', reject);
+        req.write(payload);
+        req.end();
+    });
+}
+
+async function osuApiGet(path, accessToken) {
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: 'osu.ppy.sh',
+            path:     `/api/v2/${path}`,
+            method:   'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept':        'application/json',
+                'User-Agent':    'osu-collab-server',
+            },
+        };
+        const req = https.request(options, res => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON from osu! API')); } });
+        });
+        req.on('error', reject);
+        req.end();
+    });
+}
 
 // ─── GitHub storage for reviews ───────────────────────────────────────────────
 let reviews      = {};
@@ -123,10 +205,10 @@ function parseBody(req) {
 }
 
 function setCORS(res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin',  '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Max-Age', '86400');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Review-Token');
+    res.setHeader('Access-Control-Max-Age',       '86400');
 }
 
 function json(res, status, data) {
@@ -139,12 +221,25 @@ function ok(res, data)         { json(res, 200, { success: true, data, timestamp
 function err(res, status, msg) { json(res, status, { error: msg, timestamp: Date.now() }); }
 function uid()                 { return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`; }
 
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 setInterval(() => {
     const now = Date.now();
-    mem.users   = mem.users.filter(u => now - u.timestamp < 30000);
-    mem.chat    = mem.chat.filter(m => now - m.timestamp < 7 * 86400000);
+    mem.users = mem.users.filter(u => now - u.timestamp < 30000);
+    mem.chat  = mem.chat.filter(m => now - m.timestamp < 7 * 86400000);
     if (mem.history.length > 1000) mem.history = mem.history.slice(-1000);
+    // Clean expired sessions
+    for (const [token, s] of sessions) {
+        if (s.expiresAt < now) sessions.delete(token);
+    }
 }, 60000);
 
 // ─── Server ───────────────────────────────────────────────────────────────────
@@ -159,6 +254,95 @@ const server = http.createServer(async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] ${method} ${pathname}`);
 
     try {
+
+        // ── AUTH ──────────────────────────────────────────────────────────────
+
+        if (method === 'GET' && pathname === '/auth/login') {
+            if (!OSU_CLIENT_ID || !REDIRECT_URI) {
+                err(res, 503, 'OAuth not configured on server'); return;
+            }
+            const params = new URLSearchParams({
+                client_id:     OSU_CLIENT_ID,
+                redirect_uri:  REDIRECT_URI,
+                response_type: 'code',
+                scope:         'identify',
+            });
+            json(res, 200, { url: `https://osu.ppy.sh/oauth/authorize?${params}` });
+            return;
+        }
+
+        if (method === 'GET' && pathname === '/auth/callback') {
+            const code  = url.searchParams.get('code');
+            const error = url.searchParams.get('error');
+
+            if (error || !code) {
+                res.writeHead(400, { 'Content-Type': 'text/html' });
+                res.end(`<!DOCTYPE html><html><body>
+                    <script>window.opener?.postMessage({type:'osu-auth-error',error:'${escapeHtml(error||'no code')}'}, '*'); window.close();</script>
+                    <p>Auth failed: ${escapeHtml(error||'no code')}. You can close this window.</p>
+                </body></html>`);
+                return;
+            }
+
+            try {
+                const tokens  = await exchangeCode(code);
+                if (!tokens.access_token) throw new Error('No access token returned');
+
+                const osuUser = await osuApiGet('me', tokens.access_token);
+                if (!osuUser?.id) throw new Error('Could not fetch osu! user profile');
+
+                const sessionToken = makeSessionToken();
+                sessions.set(sessionToken, {
+                    userId:    osuUser.id,
+                    username:  osuUser.username,
+                    avatarUrl: osuUser.avatar_url || null,
+                    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+                });
+
+                console.log(`  ✓ Login: ${osuUser.username} (${osuUser.id})`);
+
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(`<!DOCTYPE html><html><body>
+                    <script>
+                        window.opener?.postMessage({
+                            type:      'osu-auth-success',
+                            token:     '${sessionToken}',
+                            userId:    ${osuUser.id},
+                            username:  '${escapeHtml(osuUser.username)}',
+                            avatarUrl: '${escapeHtml(osuUser.avatar_url||'')}',
+                        }, '*');
+                        window.close();
+                    </script>
+                    <p>✓ Logged in as <strong>${escapeHtml(osuUser.username)}</strong>. You can close this window.</p>
+                </body></html>`);
+            } catch (e) {
+                console.error('  ✗ Auth callback error:', e.message);
+                res.writeHead(500, { 'Content-Type': 'text/html' });
+                res.end(`<!DOCTYPE html><html><body>
+                    <script>window.opener?.postMessage({type:'osu-auth-error',error:'${escapeHtml(e.message)}'}, '*'); window.close();</script>
+                    <p>Server error: ${escapeHtml(e.message)}. Close this window.</p>
+                </body></html>`);
+            }
+            return;
+        }
+
+        if (method === 'GET' && pathname === '/auth/me') {
+            const session = getSession(req);
+            if (!session) { err(res, 401, 'Not logged in'); return; }
+            json(res, 200, {
+                userId:    session.userId,
+                username:  session.username,
+                avatarUrl: session.avatarUrl,
+            });
+            return;
+        }
+
+        if (method === 'POST' && pathname === '/auth/logout') {
+            const auth = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+            if (auth) sessions.delete(auth);
+            json(res, 200, { ok: true });
+            return;
+        }
 
         // ── NOTES ─────────────────────────────────────────────────────────────
 
@@ -286,45 +470,56 @@ const server = http.createServer(async (req, res) => {
         }
 
         if (method === 'POST' && pathname === '/reviews') {
-            if (REVIEW_TOKEN) {
-                const auth = req.headers['authorization'] || '';
-                if (auth.replace('Bearer ', '').trim() !== REVIEW_TOKEN) {
-                    err(res, 401, 'Unauthorized'); return;
-                }
+            // Must be logged in via osu! OAuth
+            const session = getSession(req);
+            if (!session) {
+                err(res, 401, 'You must log in with your osu! account to post reviews');
+                return;
             }
 
-            const data           = await parseBody(req);
-            const text           = (data.text || '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').trim();
-            const authorUsername = (data.authorUsername || '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').trim();
-            const targetUserId   = String(data.targetUserId || '');
-            const stars          = Number(data.stars);
+            const data         = await parseBody(req);
+            const text         = (data.text || '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').trim();
+            const targetUserId = String(data.targetUserId || '');
+            const stars        = Number(data.stars);
 
-            if (!targetUserId || !/^\d{1,10}$/.test(targetUserId))          { err(res, 400, 'Invalid targetUserId'); return; }
-            if (!authorUsername || !/^[\w\- ]{1,32}$/.test(authorUsername)) { err(res, 400, 'Invalid authorUsername'); return; }
-            if (!Number.isInteger(stars) || stars < 1 || stars > 5)         { err(res, 400, 'stars must be 1–5'); return; }
+            if (!targetUserId || !/^\d{1,10}$/.test(targetUserId))  { err(res, 400, 'Invalid targetUserId'); return; }
+            if (!Number.isInteger(stars) || stars < 1 || stars > 5) { err(res, 400, 'stars must be 1–5'); return; }
             if (text.length < 5)   { err(res, 400, 'Review too short (min 5 chars)'); return; }
             if (text.length > 300) { err(res, 400, 'Review too long (max 300 chars)'); return; }
+            if (String(session.userId) === targetUserId) { err(res, 400, 'You cannot review yourself'); return; }
 
             if (!reviews[targetUserId]) reviews[targetUserId] = [];
-            if (reviews[targetUserId].some(r => r.authorUsername.toLowerCase() === authorUsername.toLowerCase())) {
+            if (reviews[targetUserId].some(r => String(r.authorUserId) === String(session.userId))) {
                 json(res, 409, { error: 'You have already reviewed this player' }); return;
             }
 
-            const review = { id: uid(), authorUsername, stars, text, createdAt: new Date().toISOString() };
+            const review = {
+                id:             uid(),
+                authorUserId:   session.userId,
+                authorUsername: session.username,
+                stars,
+                text,
+                createdAt: new Date().toISOString(),
+            };
             reviews[targetUserId].push(review);
-            saveReviewsToGitHub(); // fire-and-forget
+            saveReviewsToGitHub();
 
-            console.log(`  ✓ Review by ${authorUsername} for user ${targetUserId} (${stars}★)`);
+            console.log(`  ✓ Review by ${session.username} (${session.userId}) for user ${targetUserId} (${stars}★)`);
             json(res, 201, { ok: true, id: review.id });
             return;
         }
 
         if (method === 'DELETE' && /^\/reviews\/\d{1,10}\/[\w]+$/.test(pathname)) {
+            const session = getSession(req);
+            if (!session) { err(res, 401, 'Not logged in'); return; }
             const [, , userId, reviewId] = pathname.split('/');
             if (!reviews[userId]) { err(res, 404, 'No reviews for that user'); return; }
-            const before = reviews[userId].length;
+            const review = reviews[userId].find(r => r.id === reviewId);
+            if (!review) { err(res, 404, 'Review not found'); return; }
+            if (String(review.authorUserId) !== String(session.userId)) {
+                err(res, 403, 'You can only delete your own reviews'); return;
+            }
             reviews[userId] = reviews[userId].filter(r => r.id !== reviewId);
-            if (reviews[userId].length === before) { err(res, 404, 'Review not found'); return; }
             saveReviewsToGitHub();
             json(res, 200, { ok: true });
             return;
@@ -333,19 +528,20 @@ const server = http.createServer(async (req, res) => {
         // ── HEALTH / STATS / ROOT ─────────────────────────────────────────────
 
         if (method === 'GET' && pathname === '/health') {
-            ok(res, { status: 'healthy', uptime: process.uptime(), memory: process.memoryUsage(), version: '2.1.0' });
+            ok(res, { status: 'healthy', uptime: process.uptime(), memory: process.memoryUsage(), version: '2.2.0' });
             return;
         }
 
         if (method === 'GET' && pathname === '/stats') {
             const totalReviews = Object.values(reviews).reduce((a, b) => a + b.length, 0);
             ok(res, {
-                uptime:  Math.floor(process.uptime()),
-                notes:   mem.notes.length,
-                chat:    mem.chat.length,
-                users:   mem.users.filter(u => Date.now() - u.timestamp < 30000).length,
-                reviews: totalReviews,
-                storage: GITHUB_TOKEN ? `github (${GITHUB_REPO})` : 'memory-only',
+                uptime:   Math.floor(process.uptime()),
+                notes:    mem.notes.length,
+                chat:     mem.chat.length,
+                users:    mem.users.filter(u => Date.now() - u.timestamp < 30000).length,
+                reviews:  totalReviews,
+                sessions: sessions.size,
+                storage:  GITHUB_TOKEN ? `github (${GITHUB_REPO})` : 'memory-only',
             });
             return;
         }
@@ -366,15 +562,22 @@ h1{color:#ff66aa}.box{background:#2a2a2a;padding:16px;border-radius:8px;margin:1
 a{color:#6bb6ff}</style></head><body>
 <h1>🎵 osu! Collab Server</h1>
 <div class="box">
-  <p>✅ Running &nbsp;|&nbsp; Uptime: ${Math.floor(process.uptime())}s</p>
+  <p>✅ Running &nbsp;|&nbsp; Uptime: ${Math.floor(process.uptime())}s &nbsp;|&nbsp; Sessions: ${sessions.size}</p>
   <p>Reviews: ${totalReviews} &nbsp;|&nbsp; Storage:
-    <span class="badge ${GITHUB_TOKEN ? 'ok' : 'warn'}">${GITHUB_TOKEN ? `✓ GitHub (${GITHUB_REPO})` : '⚠ memory only — set GITHUB_TOKEN + GITHUB_REPO'}</span>
+    <span class="badge ${GITHUB_TOKEN ? 'ok' : 'warn'}">${GITHUB_TOKEN ? `✓ GitHub (${GITHUB_REPO})` : '⚠ memory only'}</span>
+  </p>
+  <p>OAuth:
+    <span class="badge ${OSU_CLIENT_ID ? 'ok' : 'warn'}">${OSU_CLIENT_ID ? '✓ Configured' : '⚠ Not configured'}</span>
   </p>
 </div>
 <h2>Endpoints</h2>
+<div class="ep"><span class="m">GET</span>    /auth/login</div>
+<div class="ep"><span class="m">GET</span>    /auth/callback</div>
+<div class="ep"><span class="m">GET</span>    /auth/me</div>
+<div class="ep"><span class="m">POST</span>   /auth/logout</div>
 <div class="ep"><span class="m">GET</span>    /reviews/:userId</div>
-<div class="ep"><span class="m">POST</span>   /reviews</div>
-<div class="ep"><span class="m">DELETE</span> /reviews/:userId/:reviewId</div>
+<div class="ep"><span class="m">POST</span>   /reviews  <em>(auth required)</em></div>
+<div class="ep"><span class="m">DELETE</span> /reviews/:userId/:reviewId  <em>(auth required)</em></div>
 <div class="ep"><span class="m">GET</span>    /notes?beatmapsetId=X</div>
 <div class="ep"><span class="m">POST</span>   /notes | /notes/react | /notes/reply</div>
 <div class="ep"><span class="m">GET/POST</span> /chat?beatmapsetId=X</div>
@@ -400,7 +603,8 @@ loadReviewsFromGitHub().then(() => {
         console.log('🎵  osu! Collab Server');
         console.log('='.repeat(60));
         console.log(`✓ http://0.0.0.0:${PORT}`);
-        console.log(`✓ Reviews: ${GITHUB_TOKEN ? `GitHub → ${GITHUB_REPO}` : 'IN-MEMORY ONLY (reviews lost on restart)'}`);
+        console.log(`✓ Reviews: ${GITHUB_TOKEN ? `GitHub → ${GITHUB_REPO}` : 'IN-MEMORY ONLY'}`);
+        console.log(`✓ OAuth:   ${OSU_CLIENT_ID ? `Configured (redirect: ${REDIRECT_URI})` : 'NOT CONFIGURED'}`);
         console.log(`✓ Started: ${new Date().toLocaleString()}`);
         console.log('='.repeat(60) + '\n');
     });
