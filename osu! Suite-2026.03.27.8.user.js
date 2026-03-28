@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! Suite
 // @namespace    http://tampermonkey.net/
-// @version      2026.03.28.1
+// @version      2026.03.28.3
 // @description  ok
 // @author       Bei
 // @match        https://osu.ppy.sh/*
@@ -2232,38 +2232,49 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
         return Store.get('review_server_url', 'https://osu-suite.onrender.com').replace(/\/+$/, '');
     }
 
+    // These must match your Render env vars exactly
+    const OSU_OAUTH_CLIENT_ID = Store.getOsuClientId();
+    const OSU_OAUTH_REDIRECT  = `${getServerUrl()}/auth/callback`;
+
     async function osuLogin() {
-        const r = await new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'GET', url: `${getServerUrl()}/auth/login`, timeout: 8000,
-                onload: resolve, onerror: reject, ontimeout: reject,
-            });
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${getServerUrl()}/auth/login`,
+            timeout: 8000,
+            onload: r => {
+                try {
+                    const { url } = JSON.parse(r.responseText);
+                    if (!url) { reject(new Error('Server did not return a login URL')); return; }
+                    authPopup = window.open(url, 'osu-auth', 'width=500,height=700,scrollbars=yes');
+                    if (!authPopup) { reject(new Error('Popup was blocked — please allow popups for osu.ppy.sh')); return; }
+                    const timeout = setTimeout(() => {
+                        window.removeEventListener('message', handler);
+                        reject(new Error('Login timed out — please try again'));
+                    }, 120000);
+                    function handler(e) {
+                        if (e.data?.type === 'osu-auth-success') {
+                            clearTimeout(timeout);
+                            window.removeEventListener('message', handler);
+                            const { token, userId, username, avatarUrl } = e.data;
+                            Store.setSessionToken(token);
+                            Store.setSessionUser({ userId, username, avatarUrl });
+                            Store.setUsername(username);
+                            resolve({ userId, username, avatarUrl });
+                        } else if (e.data?.type === 'osu-auth-error') {
+                            clearTimeout(timeout);
+                            window.removeEventListener('message', handler);
+                            reject(new Error(e.data.error || 'Auth failed'));
+                        }
+                    }
+                    window.addEventListener('message', handler);
+                } catch(e) { reject(new Error('Invalid response from server')); }
+            },
+            onerror: () => reject(new Error('Could not reach review server')),
+            ontimeout: () => reject(new Error('Server timed out')),
         });
-        const { url } = JSON.parse(r.responseText);
-        authPopup = window.open(url, 'osu-auth', 'width=500,height=700,scrollbars=yes');
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                window.removeEventListener('message', handler);
-                reject(new Error('Login timed out — please try again'));
-            }, 120000);
-            function handler(e) {
-                if (e.data?.type === 'osu-auth-success') {
-                    clearTimeout(timeout);
-                    window.removeEventListener('message', handler);
-                    const { token, userId, username, avatarUrl } = e.data;
-                    Store.setSessionToken(token);
-                    Store.setSessionUser({ userId, username, avatarUrl });
-                    Store.setUsername(username);
-                    resolve({ userId, username, avatarUrl });
-                } else if (e.data?.type === 'osu-auth-error') {
-                    clearTimeout(timeout);
-                    window.removeEventListener('message', handler);
-                    reject(new Error(e.data.error || 'Auth failed'));
-                }
-            }
-            window.addEventListener('message', handler);
-        });
-    }
+    });
+}
 
     async function osuLogout() {
         const token = Store.getSessionToken();
