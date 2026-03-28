@@ -55,6 +55,11 @@
         setOsuClientId:   (v) => GM_setValue('osu_client_id', v),
         getOsuClientSecret:() => GM_getValue('osu_client_secret', ''),
         setOsuClientSecret:(v)=> GM_setValue('osu_client_secret', v),
+        getSessionToken:  ()  => GM_getValue('osu_session_token', ''),
+        setSessionToken:  (v) => GM_setValue('osu_session_token', v),
+        getSessionUser:   ()  => { try { return JSON.parse(GM_getValue('osu_session_user', 'null')); } catch { return null; } },
+        setSessionUser:   (v) => GM_setValue('osu_session_user', JSON.stringify(v)),
+        clearSession:     ()  => { GM_deleteValue('osu_session_token'); GM_deleteValue('osu_session_user'); },
         getOsuToken:      ()  => GM_getValue('osu_token', null),
         setOsuToken:      (v) => GM_setValue('osu_token', v),
         getOsuTokenExp:   ()  => GM_getValue('osu_token_exp', 0),
@@ -2221,6 +2226,78 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
     let panel = null, backdrop = null;
     let currentUserId = null, currentUsername = null;
     let selectedStars = 0;
+    let authPopup = null;
+
+    function getServerUrl() {
+        return Store.get('review_server_url', 'https://osu-suite.onrender.com').replace(/\/+$/, '');
+    }
+
+    async function osuLogin() {
+        const r = await new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: 'GET', url: `${getServerUrl()}/auth/login`, timeout: 8000,
+                onload: resolve, onerror: reject, ontimeout: reject,
+            });
+        });
+        const { url } = JSON.parse(r.responseText);
+        authPopup = window.open(url, 'osu-auth', 'width=500,height=700,scrollbars=yes');
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                window.removeEventListener('message', handler);
+                reject(new Error('Login timed out — please try again'));
+            }, 120000);
+            function handler(e) {
+                if (e.data?.type === 'osu-auth-success') {
+                    clearTimeout(timeout);
+                    window.removeEventListener('message', handler);
+                    const { token, userId, username, avatarUrl } = e.data;
+                    Store.setSessionToken(token);
+                    Store.setSessionUser({ userId, username, avatarUrl });
+                    Store.setUsername(username);
+                    resolve({ userId, username, avatarUrl });
+                } else if (e.data?.type === 'osu-auth-error') {
+                    clearTimeout(timeout);
+                    window.removeEventListener('message', handler);
+                    reject(new Error(e.data.error || 'Auth failed'));
+                }
+            }
+            window.addEventListener('message', handler);
+        });
+    }
+
+    async function osuLogout() {
+        const token = Store.getSessionToken();
+        if (token) {
+            GM_xmlhttpRequest({
+                method: 'POST', url: `${getServerUrl()}/auth/logout`,
+                headers: { 'Authorization': `Bearer ${token}` },
+                timeout: 5000, onload: () => {}, onerror: () => {},
+            });
+        }
+        Store.clearSession();
+        Store.setUsername('');
+    }
+
+    async function verifySession() {
+        const token = Store.getSessionToken();
+        if (!token) return null;
+        try {
+            const r = await new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'GET', url: `${getServerUrl()}/auth/me`,
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    timeout: 5000, onload: resolve, onerror: reject, ontimeout: reject,
+                });
+            });
+            if (r.status === 200) {
+                const user = JSON.parse(r.responseText);
+                Store.setSessionUser(user);
+                return user;
+            }
+        } catch {}
+        Store.clearSession();
+        return null;
+    }
 
     function getProfileUserId() {
         // osu! stores user data in a script tag
@@ -2258,20 +2335,59 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
             <div class="tb-reviews-list js-list">
                 <div class="tb-reviews-loading"><span class="tb-spinner"></span> Loading reviews…</div>
             </div>
-            <div class="tb-reviews-write">
-                <div class="tb-reviews-write-title">WRITE A REVIEW</div>
-                <div class="tb-reviews-stars-pick js-stars">
-                    ${[1,2,3,4,5].map(i => `<button type="button" class="tb-reviews-star-btn" data-star="${i}">★</button>`).join('')}
+            <div class="tb-reviews-write js-write-section">
+                <div class="tb-reviews-auth js-auth-prompt" style="display:none;text-align:center;padding:16px;gap:8px;flex-direction:column;align-items:center;">
+                    <div style="font-size:11px;color:var(--tb-text-dim);margin-bottom:8px;">Log in with your osu! account to write a review</div>
+                    <button type="button" class="tb-reviews-submit js-login-btn" style="width:100%;padding:10px;">Log in with osu!</button>
+                    <div class="tb-reviews-err js-login-err" style="font-size:10px;"></div>
                 </div>
-                <textarea class="tb-reviews-textarea js-ta" placeholder="Share your experience with this player… (be respectful)" maxlength="${MAX_CHARS}"></textarea>
-                <div class="tb-reviews-submit-row">
-                    <button type="button" class="tb-reviews-submit js-submit" disabled>Submit</button>
-                    <span class="tb-reviews-char js-char">0 / ${MAX_CHARS}</span>
+                <div class="tb-reviews-form js-write-form" style="display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div class="tb-reviews-write-title">WRITE A REVIEW</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="js-logged-in-as" style="font-size:10px;color:var(--tb-text-dimmer);"></span>
+                            <button type="button" class="tb-reviews-close js-logout-btn" style="font-size:11px;padding:2px 8px;">Log out</button>
+                        </div>
+                    </div>
+                    <div class="tb-reviews-stars-pick js-stars">
+                        ${[1,2,3,4,5].map(i => `<button type="button" class="tb-reviews-star-btn" data-star="${i}">★</button>`).join('')}
+                    </div>
+                    <textarea class="tb-reviews-textarea js-ta" placeholder="Share your experience with this player… (be respectful)" maxlength="${MAX_CHARS}"></textarea>
+                    <div class="tb-reviews-submit-row">
+                        <button type="button" class="tb-reviews-submit js-submit" disabled>Submit</button>
+                        <span class="tb-reviews-char js-char">0 / ${MAX_CHARS}</span>
+                    </div>
+                    <div class="tb-reviews-err js-err"></div>
                 </div>
-                <div class="tb-reviews-err js-err"></div>
             </div>
         `;
         document.body.appendChild(panel);
+
+        function highlightStars(n) {
+            panel.querySelectorAll('.tb-reviews-star-btn').forEach(b => {
+                b.classList.toggle('active', +b.dataset.star <= n);
+            });
+        }
+
+        function validateSubmit() {
+            const ta = panel.querySelector('.js-ta');
+            const ok = ta.value.trim().length >= 5 && selectedStars > 0;
+            panel.querySelector('.js-submit').disabled = !ok;
+        }
+
+        function refreshAuthUI() {
+            const session = Store.getSessionUser();
+            const authPrompt = panel.querySelector('.js-auth-prompt');
+            const writeForm  = panel.querySelector('.js-write-form');
+            if (session) {
+                authPrompt.style.display = 'none';
+                writeForm.style.display  = 'block';
+                panel.querySelector('.js-logged-in-as').textContent = `Logged in as ${session.username}`;
+            } else {
+                authPrompt.style.display = 'flex';
+                writeForm.style.display  = 'none';
+            }
+        }
 
         // Star picker
         panel.querySelectorAll('.tb-reviews-star-btn').forEach(btn => {
@@ -2284,13 +2400,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
             });
         });
 
-        function highlightStars(n) {
-            panel.querySelectorAll('.tb-reviews-star-btn').forEach(b => {
-                b.classList.toggle('active', +b.dataset.star <= n);
-            });
-        }
-
-        // Textarea counter + validation
+        // Textarea counter
         const ta = panel.querySelector('.js-ta');
         const charEl = panel.querySelector('.js-char');
         ta.addEventListener('input', () => {
@@ -2298,38 +2408,59 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
             validateSubmit();
         });
 
-        function validateSubmit() {
-            const ok = ta.value.trim().length >= 5 && selectedStars > 0;
-            panel.querySelector('.js-submit').disabled = !ok;
-        }
+        // Login button
+        panel.querySelector('.js-login-btn').addEventListener('click', async () => {
+            const loginBtn = panel.querySelector('.js-login-btn');
+            const loginErr = panel.querySelector('.js-login-err');
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Opening osu! login…';
+            loginErr.textContent = '';
+            try {
+                await osuLogin();
+                refreshAuthUI();
+                notify('✓ Logged in!', 'success');
+            } catch (e) {
+                loginErr.textContent = `✗ ${e.message}`;
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Log in with osu!';
+            }
+        });
+
+        // Logout button
+        panel.querySelector('.js-logout-btn').addEventListener('click', async () => {
+            await osuLogout();
+            selectedStars = 0;
+            highlightStars(0);
+            if (ta) { ta.value = ''; charEl.textContent = `0 / ${MAX_CHARS}`; }
+            refreshAuthUI();
+        });
 
         // Submit
         panel.querySelector('.js-submit').addEventListener('click', async () => {
-            const text = ta.value.trim();
+            const text  = ta.value.trim();
             const errEl = panel.querySelector('.js-err');
             errEl.textContent = '';
             if (!text || selectedStars === 0) return;
 
-            const myUsername = Store.getUsername();
-            if (!myUsername) {
-                errEl.textContent = '✗ Set your osu! username in the API Keys tab first.';
-                return;
-            }
+            const token = Store.getSessionToken();
+            if (!token) { refreshAuthUI(); return; }
 
             const btn = panel.querySelector('.js-submit');
             btn.disabled = true; btn.textContent = 'Submitting…';
 
             try {
-                const serverUrl = Store.get('review_server_url', 'https://osu-suite.onrender.com').replace(/\/+$/, '');
                 const r = await new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
                         method: 'POST',
-                        url: `${serverUrl}/reviews`,
-                        headers: { 'Content-Type': 'application/json', 'X-Review-Token': Store.getReviewToken() },
+                        url: `${getServerUrl()}/reviews`,
+                        headers: {
+                            'Content-Type':  'application/json',
+                            'Authorization': `Bearer ${token}`,
+                        },
                         data: JSON.stringify({
                             targetUserId: currentUserId,
-                            authorUsername: myUsername,
-                            stars: selectedStars,
+                            stars:        selectedStars,
                             text,
                         }),
                         timeout: 8000,
@@ -2341,16 +2472,20 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
                     charEl.textContent = `0 / ${MAX_CHARS}`;
                     notify('✓ Review posted!', 'success');
                     await loadReviews(currentUserId);
+                } else if (r.status === 401) {
+                    Store.clearSession();
+                    refreshAuthUI();
+                    errEl.textContent = '✗ Session expired — please log in again';
                 } else {
-    try {
-        const body = JSON.parse(r.responseText);
-        errEl.textContent = `✗ ${body.error || 'Server error: ' + r.status}`;
-    } catch {
-        errEl.textContent = `✗ Server error: ${r.status}`;
-    }
-}
-            } catch(e) {
-                errEl.textContent = `✗ Could not reach review server. Is it running?`;
+                    try {
+                        const body = JSON.parse(r.responseText);
+                        errEl.textContent = `✗ ${body.error || 'Server error: ' + r.status}`;
+                    } catch {
+                        errEl.textContent = `✗ Server error: ${r.status}`;
+                    }
+                }
+            } catch (e) {
+                errEl.textContent = `✗ Could not reach review server.`;
             } finally {
                 btn.textContent = 'Submit';
                 validateSubmit();
@@ -2359,6 +2494,8 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
 
         panel.querySelector('.tb-reviews-close').addEventListener('click', closePanel);
         backdrop.addEventListener('click', closePanel);
+
+        refreshAuthUI();
     }
 
     async function loadReviews(userId) {
@@ -2415,6 +2552,16 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
         panel.classList.add('open');
         backdrop.classList.add('open');
         loadReviews(userId);
+        // Silently verify session is still valid when panel opens
+        verifySession().then(user => {
+            if (!user && Store.getSessionToken()) {
+                // Token was set but is now invalid — clear it and refresh UI
+                const authPrompt = panel.querySelector('.js-auth-prompt');
+                const writeForm  = panel.querySelector('.js-write-form');
+                if (authPrompt) authPrompt.style.display = 'flex';
+                if (writeForm)  writeForm.style.display  = 'none';
+            }
+        });
     }
 
     function closePanel() {
@@ -2453,6 +2600,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
                 const r = await new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
                         method: 'GET', url: `${serverUrl}/reviews/${userId}`, timeout: 5000,
+headers: { 'X-Review-Token': Store.getReviewToken() },
                         onload: resolve, onerror: reject, ontimeout: reject,
                     });
                 });
