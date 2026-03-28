@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! Suite
 // @namespace    http://tampermonkey.net/
-// @version      2026.03.28
+// @version      2026.03.28.1
 // @description  ok
 // @author       Bei
 // @match        https://osu.ppy.sh/*
