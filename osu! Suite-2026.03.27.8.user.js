@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! Suite
 // @namespace    http://tampermonkey.net/
-// @version      2026.03.27.8
+// @version      2026.03.28
 // @description  ok
 // @author       Bei
 // @match        https://osu.ppy.sh/*
@@ -1095,11 +1095,11 @@ if (isOsuSite) {
             .beatmapset-panel.tb-dimmed {
                 opacity: 0.15 !important;
                 filter: grayscale(0.7) !important;
-                transition: opacity 0.2s, filter 0.2s !important;
+                transition: opacity 0.15s, filter 0.15s !important;
             }
             .beatmapset-panel.tb-dimmed:hover {
-                opacity: 0.5 !important;
-                filter: none !important;
+                opacity: 0.35 !important;
+                filter: grayscale(0.3) !important;
             }
         `);
 
@@ -1188,7 +1188,7 @@ if (isOsuSite) {
 
         function injectStatsAndFilter(card, bs) {
             injectStats(card, bs);
-            if (activeClasses.size > 0) applyClassFilter();
+            applyClassFilter();
         }
 
         function maybeShowClassPanel() {
@@ -1266,7 +1266,7 @@ if (isOsuSite) {
                             // re-inject immediately — no timeout, no queue
                             card.setAttribute(ATTR_DONE, id);
                             injectStats(card, cached);
-                            if (activeClasses.size > 0) applyClassFilter();
+                            applyClassFilter();
                         } else {
                             hasNewCards = true;
                         }
@@ -1666,12 +1666,8 @@ if (isOsuSite) {
 
             init() {
                 this._scan();
-                new MutationObserver(muts => {
-                    for (const m of muts) for (const n of m.addedNodes) {
-                        if (n.nodeType !== 1) continue;
-                        if (n.matches?.('.comment-editor') || n.querySelector?.('.comment-editor'))
-                            setTimeout(() => this._scan(), 100);
-                    }
+                new MutationObserver(() => {
+                    setTimeout(() => this._scan(), 120);
                 }).observe(document.body, { childList: true, subtree: true });
                 ['pushState','replaceState'].forEach(method => {
                     const orig = history[method];
@@ -2081,7 +2077,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
 //  MODULE 3 — PLAYER REVIEWS
 // ═══════════════════════════════════════════════════════════════════════════
 (function() {
-    const REVIEW_SERVER = Store.get('review_server_url', 'http://localhost:3000');
+    const REVIEW_SERVER = Store.get('review_server_url', 'https://osu-suite.onrender.com');
     const REVIEW_CSS = `
         .tb-reviews-panel {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -2324,7 +2320,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
             btn.disabled = true; btn.textContent = 'Submitting…';
 
             try {
-                const serverUrl = Store.get('review_server_url', 'http://localhost:3000').replace(/\/+$/, '');
+                const serverUrl = Store.get('review_server_url', 'https://osu-suite.onrender.com').replace(/\/+$/, '');
                 const r = await new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
                         method: 'POST',
@@ -2475,6 +2471,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
 
     setTimeout(tryInject, 800);
     setTimeout(tryInject, 2000);
+    setTimeout(tryInject, 4000);
     new MutationObserver(() => tryInject()).observe(document.body, { childList: true, subtree: true });
     ['pushState','replaceState'].forEach(m => {
         const o = history[m]; history[m] = (...a) => { o.apply(history,a); document.querySelector('.tb-reviews-btn-wrap')?.remove(); setTimeout(tryInject, 800); };
@@ -2483,8 +2480,15 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
 })();
 
         const gifMgr = new GifManager();
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(() => gifMgr.init(), 800));
-        else setTimeout(() => gifMgr.init(), 800);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(() => gifMgr.init(), 800);
+                setTimeout(() => gifMgr._scan(), 2500);
+            });
+        } else {
+            setTimeout(() => gifMgr.init(), 800);
+            setTimeout(() => gifMgr._scan(), 2500);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
