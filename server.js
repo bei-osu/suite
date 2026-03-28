@@ -60,11 +60,11 @@ function getSession(req) {
 async function exchangeCode(code) {
     return new Promise((resolve, reject) => {
         const payload = JSON.stringify({
-            client_id:     OSU_CLIENT_ID,
-            client_secret: OSU_CLIENT_SECRET,
+            client_id:     parseInt(OSU_CLIENT_ID, 10),
+            client_secret: OSU_CLIENT_SECRET.trim(),
             code,
             grant_type:    'authorization_code',
-            redirect_uri:  REDIRECT_URI,
+            redirect_uri:  REDIRECT_URI.trim(),
         });
         const options = {
             hostname: 'osu.ppy.sh',
