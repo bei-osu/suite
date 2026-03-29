@@ -578,8 +578,6 @@ footer { border-top: 1px solid var(--line); padding: 48px 0; margin-top: 80px; d
     // IMPORTANT: No Node.js variables are interpolated below this line.
     // Admin username check is done server-side via /auth/me isAdmin field.
     html += '<script>\n';
-    html += '{\n';
-    html += '"use strict";\n';
 
     html += `
 // ── Cursor
