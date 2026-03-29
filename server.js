@@ -578,7 +578,7 @@ footer { border-top: 1px solid var(--line); padding: 48px 0; margin-top: 80px; d
     // IMPORTANT: No Node.js variables are interpolated below this line.
     // Admin username check is done server-side via /auth/me isAdmin field.
     html += '<script>\n';
-    html += '(function() {\n';
+    html += '{\n';
     html += '"use strict";\n';
 
     html += `
@@ -597,7 +597,7 @@ document.addEventListener('mousemove', function(e) {
     ringEl.style.left = rx + 'px';
     ringEl.style.top  = ry + 'px';
     requestAnimationFrame(animRing);
-})();
+;
 document.addEventListener('mouseover', function(e) {
     if (e.target.closest('a,button,input,textarea')) {
         curEl.style.width = '20px'; curEl.style.height = '20px';
