@@ -315,7 +315,8 @@ nav a:hover { color: var(--white); border-color: var(--line-hi); }
 .sdot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 2s ease infinite; }
 
 /* ── Hero ── */
-.reveal { opacity: 1; transform: none; }
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+.reveal.in { opacity: 1; transform: none; }
 .eyebrow {
     font-family: var(--fm); font-size: 11px; letter-spacing: 2px;
     color: var(--g4); text-transform: uppercase;
