@@ -340,7 +340,7 @@ h1 em { font-style: italic; color: var(--g5); }
 .stats {
     display: flex; gap: 1px;
     border: 1px solid var(--line-hi); border-radius: 12px; overflow: hidden;
-    max-width: 560px;
+    max-width: 640px;
     opacity: 0; animation: fadeUp .8s var(--ease) .4s forwards;
 }
 .stat {
@@ -377,7 +377,7 @@ h1 em { font-style: italic; color: var(--g5); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Sections ── */
-.sec { padding: 72px 0; border-top: 1px solid var(--line); }
+.sec { padding: 90px 0; border-top: 1px solid var(--line); scroll-margin-top: 80px; }
 .sec-label {
     font-family: var(--fm); font-size: 10px;
     letter-spacing: 2px; color: var(--g4); text-transform: uppercase;
@@ -434,7 +434,7 @@ h1 em { font-style: italic; color: var(--g5); }
 .btn-edit:hover { color: var(--white); border-color: var(--line-hi); }
 
 /* ── Search ── */
-.search-row { display: flex; gap: 10px; margin-bottom: 36px; max-width: 500px; }
+.search-row { display: flex; gap: 10px; margin-bottom: 36px; max-width: 600px; }
 .search-input {
     flex: 1; padding: 11px 15px;
     background: rgba(255,255,255,.04);
@@ -448,7 +448,7 @@ h1 em { font-style: italic; color: var(--g5); }
 /* ── Profile card ── */
 .profile-card {
     border: 1px solid var(--line-hi); border-radius: 16px; overflow: hidden;
-    max-width: 760px;
+    max-width: 800px;
     opacity: 0; transform: translateY(14px);
     transition: all .4s var(--ease);
 }
@@ -510,7 +510,7 @@ h1 em { font-style: italic; color: var(--g5); }
 .edit-err { font-size: 12px; color: #ff6b6b; margin-top: 6px; font-family: var(--fm); }
 
 /* ── Write panel ── */
-.write-panel { margin-top: 28px; border: 1px solid var(--line-hi); border-radius: 12px; overflow: hidden; max-width: 760px; }
+.write-panel { margin-top: 28px; border: 1px solid var(--line-hi); border-radius: 12px; overflow: hidden; max-width: 800px; }
 .write-header {
     padding: 14px 22px; background: rgba(255,255,255,.03);
     border-bottom: 1px solid var(--line);
@@ -608,7 +608,7 @@ h1 em { font-style: italic; color: var(--g5); }
 .api-desc { font-size: 12px; color: var(--g4); line-height: 1.5; }
 
 /* ── Footer ── */
-footer { border-top: 1px solid var(--line); padding: 36px 0; margin-top: 72px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+footer { border-top: 1px solid var(--line); padding: 48px 0; margin-top: 80px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
 .footer-l { font-family: var(--fm); font-size: 11px; color: var(--g4); }
 .footer-r { display: flex; gap: 20px; font-family: var(--fm); font-size: 11px; }
 .footer-r a { color: var(--g4); text-decoration: none; }
@@ -630,8 +630,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0; margin-top: 72px; d
 .notif-success { background: #0a0a0a; border-color: #4ade80; color: #4ade80; }
 .notif-error   { background: #0a0a0a; border-color: #ff6b6b; color: #ff6b6b; }
 .notif-info    { background: #0a0a0a; border-color: #93c5fd; color: #93c5fd; }
-.reveal { opacity: 1; transform: none; }
-.reveal.in { opacity: 1; transform: none; }
+.reveal { opacity: 1 !important; transform: none !important; }
 @keyframes fadeUp  { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
 
@@ -675,7 +674,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0; margin-top: 72px; d
 </header>
 
 <!-- ── Hero ── -->
-<section class="hero">
+<section class="hero" style="padding: 100px 0 90px; position: relative;">
     <div class="hero-circ"></div>
     <div class="eyebrow">osu! player reviews</div>
     <h1>leave your<br><em>mark.</em></h1>
@@ -727,7 +726,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0; margin-top: 72px; d
     <div class="sec-label">02 — player reviews</div>
     <div class="search-row">
         <input type="text" class="search-input" id="player-input" placeholder="Enter osu! user ID…" autocomplete="off">
-        <button class="btn btn-ghost" onclick="searchPlayer()">Search</button>
+        <button class="btn btn-ghost" id="search-btn" onclick="searchPlayer()">Search</button>
     </div>
     <div class="profile-card" id="profile-card">
         <div class="profile-header">
@@ -919,7 +918,10 @@ document.addEventListener('mouseover', e => {
 });
 
 // ── Scroll reveal ───────────────────────────────────────────────────────────
-// sections always visible
+document.querySelectorAll('.reveal').forEach(el => {
+    el.style.opacity = '1';
+    el.style.transform = 'none';
+});
 
 // ── State ───────────────────────────────────────────────────────────────────
 let tok = localStorage.getItem('osu_tok') || null;
@@ -959,7 +961,11 @@ async function doLogin() {
         const d = await r.json();
         if (!d.url) throw new Error('No login URL returned');
         const popup = window.open(d.url, 'osu-auth', 'width=520,height=720,scrollbars=yes');
-        if (!popup) throw new Error('Popup blocked — please allow popups for this site');
+        if (!popup) {
+            errEl.textContent = '✗ Popup blocked — please allow popups for this site and try again';
+            btn.innerHTML = 'Login with osu!'; btn.disabled = false;
+            return;
+        }
         const timeout = setTimeout(() => {
             window.removeEventListener('message', handler);
             errEl.textContent = '✗ Login timed out';
@@ -1028,8 +1034,8 @@ function renderLoggedIn() {
         document.getElementById('admin-badge').classList.remove('hidden');
         document.getElementById('s-admin').classList.remove('hidden');
         document.getElementById('admin-api-link').style.display = '';
-        document.getElementById('guide-label').textContent = '06 — how to use';
-        document.getElementById('api-label').textContent = '07 — api reference';
+        document.getElementById('guide-label').textContent = '05 — how to use';
+        document.getElementById('api-label').textContent = '06 — api reference';
         loadAdminRevs();
     }
     document.getElementById('dash-out').classList.add('hidden');
@@ -1236,13 +1242,10 @@ async function adminDelete(tuid, id) {
     else { const d = await r.json().catch(() => ({})); notify('✗ ' + (d.error || 'Error'), 'error'); }
 }
 
-// ── Search / reviews ─────────────────────────────────────────────────────────
-document.getElementById('player-input').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlayer(); });
-
 async function searchPlayer() {
     const v = document.getElementById('player-input').value.trim();
-    if (!v) return;
-    if (!/^\d+$/.test(v)) { notify('Please enter a numeric user ID', 'error'); return; }
+    if (!v) { notify('Please enter a user ID', 'error'); return; }
+    if (!/^\d+$/.test(v)) { notify('User ID must be numeric (e.g. 14039549)', 'error'); return; }
     cuid = v;
     const card = document.getElementById('profile-card');
     card.classList.remove('visible');
@@ -1250,17 +1253,20 @@ async function searchPlayer() {
     document.getElementById('profile-avatar').src = 'https://a.ppy.sh/' + v;
     document.getElementById('profile-meta').innerHTML =
         '<span>id: ' + v + '</span>' +
-        '<a href="https://osu.ppy.sh/users/' + v + '" target="_blank">→ osu! profile</a>';
+        '<a href="https://osu.ppy.sh/users/' + v + '" target="_blank" style="color:var(--g5);text-decoration:underline;">→ osu! profile</a>';
     document.getElementById('reviews-body').innerHTML = '<div class="reviews-empty"><span class="spinner"></span></div>';
+    void card.offsetWidth; // force reflow before re-adding visible
     card.classList.add('visible');
-    await loadReviews(v);
     updateWritePanel();
+    await loadReviews(v);
 }
 
 async function loadReviews(uid) {
     const body = document.getElementById('reviews-body');
+    body.innerHTML = '<div class="reviews-empty"><span class="spinner"></span></div>';
     try {
         const r = await fetch('/reviews/' + uid);
+        if (!r.ok) { body.innerHTML = '<div class="reviews-empty"><div class="empty-icon">!</div><div>Server error ' + r.status + '</div></div>'; return; }
         const revs = await r.json();
         if (!Array.isArray(revs) || !revs.length) {
             body.innerHTML = '<div class="reviews-empty"><div class="empty-icon">◇</div><div>No reviews yet.</div></div>';
@@ -1388,6 +1394,7 @@ function fmtDate(d) {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
+document.getElementById('player-input').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlayer(); });
 verifySession();
 </script>
 </body>
