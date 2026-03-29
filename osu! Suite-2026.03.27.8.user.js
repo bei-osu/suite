@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! Suite
 // @namespace    http://tampermonkey.net/
-// @version      2026.03.29
+// @version      2026.03.29.1
 // @description  ok
 // @author       Bei
 // @match        https://osu.ppy.sh/*
@@ -89,25 +89,26 @@
     //  TB DESIGN TOKENS & GLOBAL STYLES
     // ═══════════════════════════════════════════════════════════════════════════
     const TB_CSS = `
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
         :root {
-            --tb-bg0: rgba(12, 12, 12, 0.97);
-            --tb-bg1: rgba(12, 12, 12, 0.97);
-            --tb-bg2: rgba(26, 26, 26, 0.6);
-            --tb-border: rgba(255,255,255,0.06);
-            --tb-border-hi: rgba(255,255,255,0.2);
-            --tb-text: #e8e8ec;
-            --tb-text-dim: rgba(255,255,255,0.45);
-            --tb-text-dimmer: rgba(255,255,255,0.25);
-            --tb-accent: #ff66aa;
-            --tb-accent2: #6bb6ff;
+            --tb-bg0: rgba(10, 10, 10, 0.97);
+            --tb-bg1: rgba(10, 10, 10, 0.97);
+            --tb-bg2: rgba(26, 26, 26, 0.5);
+            --tb-border: rgba(255,255,255,0.08);
+            --tb-border-hi: rgba(255,255,255,0.18);
+            --tb-text: #f5f5f0;
+--tb-text-dim: #bbb;
+--tb-text-dimmer: #888;
+--tb-accent: #f5f5f0;
+--tb-accent2: #f5f5f0;
             --tb-accent3: #ffd93d;
             --tb-green: #4caf50;
             --tb-red: #ff6b6b;
             --tb-orange: #f97316;
             --tb-purple: #a855f7;
-            --tb-radius: 6px;
-            --tb-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --tb-mono: "Courier New", monospace;
+--tb-radius: 8px;
+            --tb-font: 'Syne', -apple-system, BlinkMacSystemFont, sans-serif;
+            --tb-mono: 'DM Mono', monospace;
         }
 
         @keyframes tb-slideIn  { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -127,10 +128,10 @@
             animation: tb-slideIn 0.25s ease-out;
             pointer-events: none;
         }
-        .tb-toast--info    { background: #999; border-color: #888; color: #000; }
-        .tb-toast--success { background: #fff; border-color: #333; color: #000; }
-        .tb-toast--warning { background: #666; border-color: #555; color: #fff; }
-        .tb-toast--error   { background: #000; border-color: #fff; color: #fff; }
+        .tb-toast--info    { background: #0a0a0a; border-color: #93c5fd; color: #93c5fd; }
+.tb-toast--success { background: #0a0a0a; border-color: #4ade80; color: #4ade80; }
+.tb-toast--warning { background: #0a0a0a; border-color: #fbbf24; color: #fbbf24; }
+.tb-toast--error   { background: #0a0a0a; border-color: #ff6b6b; color: #ff6b6b; }
 
         /* ═══ AUTOFILLER PANEL ═══════════════════════════════════════════════ */
         .tb-af-container {
@@ -143,7 +144,20 @@
             box-shadow: 0 8px 24px rgba(0,0,0,0.8);
             backdrop-filter: blur(4px); min-width: 340px;
             animation: tb-slideIn 0.3s cubic-bezier(.25,.8,.25,1);
+            position: relative; overflow: hidden;
         }
+        .tb-af-panel::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: .025;
+        }
+        .tb-af-panel::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+            background-size: 80px 80px;
+            mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 0%, transparent 80%);
+        }
+        .tb-af-panel > * { position: relative; z-index: 1; }
         .tb-af-header {
             text-align: center; margin-bottom: 12px; padding: 10px 14px;
             background: rgba(26, 26, 26, 0.8);
@@ -163,12 +177,12 @@
         .tb-af-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px; }
         .tb-btn {
             padding: 7px 12px; background: var(--tb-bg2);
-            border: 1px solid var(--tb-border); border-radius: 4px;
-            color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 400;
-            font-family: var(--tb-font); cursor: pointer; transition: all 0.15s;
+            border: 1px solid var(--tb-border); border-radius: 8px;
+            color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600;
+            font-family: var(--tb-font); cursor: pointer; transition: all 0.2s;
             letter-spacing: 0px; text-transform: none;
         }
-        .tb-btn:hover { background: rgba(255,255,255,0.10); border-color: var(--tb-border-hi); color: var(--tb-text); transform: translateY(-1px); }
+        .tb-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--tb-border-hi); color: var(--tb-text); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,255,255,0.08); }
         .tb-btn:active { transform: translateY(0); background: rgba(255,255,255,0.06); }
         .tb-af-status {
             display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -245,7 +259,20 @@
             display: none; overflow: hidden;
             font-family: var(--tb-font);
             animation: tb-fadeIn 0.2s ease-out;
+            position: absolute;
         }
+        .tb-gif-panel::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: .025;
+        }
+        .tb-gif-panel::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+            background-size: 80px 80px;
+            mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 0%, transparent 80%);
+        }
+        .tb-gif-panel > * { position: relative; z-index: 1; }
         .tb-gif-panel.open { display: block; }
 
         .tb-gif-header {
@@ -2107,8 +2134,21 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
             backdrop-filter: blur(8px); font-family: var(--tb-font);
             display: none; flex-direction: column;
             animation: tb-fadeIn 0.2s ease-out;
+            overflow: hidden;
         }
-        .tb-reviews-panel.open { display: flex; }
+        .tb-reviews-panel::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: .025;
+        }
+        .tb-reviews-panel::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+            background-size: 80px 80px;
+            mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 0%, transparent 80%);
+        }
+        .tb-reviews-panel > * { position: relative; z-index: 1; }
+        .tb-reviews-panel.open { display: flex; position: fixed; }
         .tb-reviews-backdrop {
             position: fixed; inset: 0; z-index: 999998;
             background: rgba(0,0,0,0.5); display: none;
