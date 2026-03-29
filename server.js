@@ -315,7 +315,7 @@ nav a:hover { color: var(--white); border-color: var(--line-hi); }
 .sdot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 2s ease infinite; }
 
 /* ── Hero ── */
-.hero { padding: 90px 0 70px; position: relative; overflow: hidden; }
+.hero { padding: 90px 0 70px; position: relative; overflow: visible; }
 .eyebrow {
     font-family: var(--fm); font-size: 11px; letter-spacing: 2px;
     color: var(--g4); text-transform: uppercase;
@@ -357,8 +357,8 @@ h1 em { font-style: italic; color: var(--g5); }
 
 /* ── Decorative circle ── */
 .hero-circ {
-    position: absolute; right: -60px; top: 30px;
-    width: 320px; height: 320px;
+    position: absolute; right: 20px; top: 30px;
+    width: 280px; height: 280px;
     border: 1px solid var(--line-hi); border-radius: 50%;
     opacity: 0; animation: fadeIn 1.2s var(--ease) .5s forwards, spin 40s linear infinite;
     pointer-events: none;
@@ -922,8 +922,14 @@ document.addEventListener('mouseover', e => {
 // ── Scroll reveal ───────────────────────────────────────────────────────────
 const observer = new IntersectionObserver(entries => {
     entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); observer.unobserve(e.target); } });
-}, { threshold: 0.08 });
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+}, { threshold: 0, rootMargin: '0px 0px -50px 0px' });
+document.querySelectorAll('.reveal').forEach(el => {
+    observer.observe(el);
+    if (el.getBoundingClientRect().top < window.innerHeight) {
+        el.classList.add('in');
+        observer.unobserve(el);
+    }
+});
 
 // ── State ───────────────────────────────────────────────────────────────────
 let tok = localStorage.getItem('osu_tok') || null;
