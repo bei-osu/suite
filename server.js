@@ -761,7 +761,7 @@ function buildHomePage() {
     html += '                    "<div class=\\"dash-item-text\\">" + H(rv.text) + "</div>" +\n';
     html += '                    "<div class=\\"dash-item-date\\">" + fmtDate(rv.createdAt) + (rv.updatedAt ? " \u00b7 edited" : "") + "</div>" +\n';
     html += '                    "<div class=\\"dash-item-actions\\">" +\n';
-    html += '                        "<button class=\\"btn btn-edit\\" onclick=\\"openEdit(\'" + rv.id + "\',\'" + uid + "\'," + rv.stars + "," + JSON.stringify(rv.text) + ",true)
+    html += '                        "<button class=\\"btn btn-edit\\" onclick=\\"openEdit(\'" + rv.id + "\',\'" + rv.tuid + "\'," + rv.stars + "," + JSON.stringify(rv.text) + ",false)\\">Edit</button>" +\n';
     html += '                        "<button class=\\"btn btn-danger\\" onclick=\\"deleteReview(\'" + rv.tuid + "\',\'" + rv.id + "\')\\">Delete</button>" +\n';
     html += '                    "</div>" +\n';
     html += '                    "<div class=\\"edit-form\\" id=\\"ef-" + rv.id + "\\">" +\n';
@@ -952,7 +952,7 @@ function buildHomePage() {
     html += '                if (mine) {\n';
     html += '                    mineHtml =\n';
     html += '                        "<div class=\\"review-actions\\">" +\n';
-    html += '                            "<button class=\\"btn btn-edit\\" onclick=\\"openEdit(\'" + rv.id + "\',\'" + uid + "\'," + rv.stars + ",\'" + rv.text.replace(/\'/g, "\\\\\\'") + "\',true)\\">Edit</button>" +\n';
+    html += '                            "<button class=\\"btn btn-edit\\" onclick=\\"openEdit(\'" + rv.id + "\',\'" + uid + "\'," + rv.stars + "," + JSON.stringify(rv.text) + ",true)\\">Edit</button>" +\n';
     html += '                            "<button class=\\"btn btn-danger\\" onclick=\\"deleteReview(\'" + uid + "\',\'" + rv.id + "\')\\">Delete</button>" +\n';
     html += '                        "</div>" +\n';
     html += '                        "<div class=\\"edit-form\\" id=\\"pef-" + rv.id + "\\">" +\n';
