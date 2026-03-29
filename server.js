@@ -79,10 +79,10 @@ async function exchangeCode(code) {
         const req = https.request({
             hostname: 'osu.ppy.sh', path: '/oauth/token', method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), 'User-Agent': 'osu-collab-server' },
-        }, res => {
+        }, function(res) {
             let data = '';
-            res.on('data', c => data += c);
-            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
+            res.on('data', function(c) { data += c; });
+            res.on('end', function() { try { resolve(JSON.parse(data)); } catch(e) { reject(new Error('Invalid JSON')); } });
         });
         req.on('error', reject); req.write(payload); req.end();
     });
@@ -93,10 +93,10 @@ async function osuApiGet(path, token) {
         const req = https.request({
             hostname: 'osu.ppy.sh', path: '/api/v2/' + path, method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json', 'User-Agent': 'osu-collab-server' },
-        }, res => {
+        }, function(res) {
             let data = '';
-            res.on('data', c => data += c);
-            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
+            res.on('data', function(c) { data += c; });
+            res.on('end', function() { try { resolve(JSON.parse(data)); } catch(e) { reject(new Error('Invalid JSON')); } });
         });
         req.on('error', reject); req.end();
     });
@@ -108,19 +108,23 @@ let reviews = {}, reviewsSHA = null, reviewsDirty = false, saveInFlight = false;
 function githubRequest(method, path, body) {
     return new Promise((resolve, reject) => {
         const payload = body ? JSON.stringify(body) : null;
+        const headers = {
+            'Authorization': 'token ' + GITHUB_TOKEN,
+            'User-Agent': 'osu-collab-server',
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+        };
+        if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
         const req = https.request({
-            hostname: 'api.github.com', path, method,
-            headers: {
-                'Authorization': 'token ' + GITHUB_TOKEN,
-                'User-Agent': 'osu-collab-server',
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-                ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
-            },
-        }, res => {
+            hostname: 'api.github.com', path: path, method: method,
+            headers: headers,
+        }, function(res) {
             let data = '';
-            res.on('data', c => data += c);
-            res.on('end', () => { try { resolve({ status: res.statusCode, body: JSON.parse(data) }); } catch { resolve({ status: res.statusCode, body: data }); } });
+            res.on('data', function(c) { data += c; });
+            res.on('end', function() {
+                try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+                catch(e) { resolve({ status: res.statusCode, body: data }); }
+            });
         });
         req.on('error', reject);
         if (payload) req.write(payload);
@@ -1077,7 +1081,6 @@ function submitReview() {
 // ── Init
 document.getElementById('player-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchPlayer(); });
 verifySession();
-
 `;
 
     html += '<\/script>\n</body>\n</html>';
