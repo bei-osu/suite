@@ -958,8 +958,10 @@ async function doLogin() {
     errEl.textContent = '';
     try {
         const r = await fetch('/auth/login');
+        console.log('auth/login status:', r.status);
         const d = await r.json();
-        if (!d.url) throw new Error('No login URL returned');
+        console.log('auth/login response:', d);
+        if (!d.url) throw new Error('No login URL returned — check OSU_CLIENT_ID and REDIRECT_URI env vars on Render');
         const popup = window.open(d.url, 'osu-auth', 'width=520,height=720,scrollbars=yes');
         if (!popup) {
             errEl.textContent = '✗ Popup blocked — please allow popups for this site and try again';
