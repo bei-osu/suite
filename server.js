@@ -315,7 +315,7 @@ nav a:hover { color: var(--white); border-color: var(--line-hi); }
 .sdot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 2s ease infinite; }
 
 /* ── Hero ── */
-.hero { padding: 90px 0 70px; position: relative; overflow: visible; }
+.reveal { opacity: 1; transform: none; }
 .eyebrow {
     font-family: var(--fm); font-size: 11px; letter-spacing: 2px;
     color: var(--g4); text-transform: uppercase;
@@ -920,16 +920,7 @@ document.addEventListener('mouseover', e => {
 });
 
 // ── Scroll reveal ───────────────────────────────────────────────────────────
-const observer = new IntersectionObserver(entries => {
-    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); observer.unobserve(e.target); } });
-}, { threshold: 0, rootMargin: '0px 0px -50px 0px' });
-document.querySelectorAll('.reveal').forEach(el => {
-    observer.observe(el);
-    if (el.getBoundingClientRect().top < window.innerHeight) {
-        el.classList.add('in');
-        observer.unobserve(el);
-    }
-});
+// sections always visible
 
 // ── State ───────────────────────────────────────────────────────────────────
 let tok = localStorage.getItem('osu_tok') || null;
