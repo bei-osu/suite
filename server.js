@@ -1264,7 +1264,8 @@ async function verifySession() {
     try {
         const r = await fetch('/auth/me', { headers: { 'Authorization': 'Bearer ' + sessionToken } });
         if (r.ok) {
-            sessionUser = await r.json();
+            const body = await r.json();
+            sessionUser = body.data ?? body;
             renderLoggedIn();
         } else {
             sessionToken = null; sessionUser = null;
