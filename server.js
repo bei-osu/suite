@@ -1033,7 +1033,7 @@ function renderLoggedIn() {
         img.onload = () => wrap.classList.add('loaded');
     }
     document.getElementById('write-user').textContent = 'as ' + usr.username;
-    const isAdm = usr.username.toLowerCase() === '${ADMIN_USERNAME}';
+    const isAdm = usr.isAdmin || false;
     if (isAdm) {
         document.getElementById('admin-badge').classList.remove('hidden');
         document.getElementById('s-admin').classList.remove('hidden');
@@ -1464,7 +1464,7 @@ const server = http.createServer(async (req, res) => {
         if (method === 'GET' && pathname === '/auth/me') {
             const s = getSession(req);
             if (!s) { err(res, 401, 'Not logged in'); return; }
-            json(res, 200, { success: true, data: { userId: s.userId, username: s.username, avatarUrl: s.avatarUrl } });
+            json(res, 200, { success: true, data: { userId: s.userId, username: s.username, avatarUrl: s.avatarUrl, isAdmin: isAdmin(s) } });
             return;
         }
 
