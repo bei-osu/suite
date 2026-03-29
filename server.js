@@ -315,8 +315,6 @@ nav a:hover { color: var(--white); border-color: var(--line-hi); }
 .sdot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 2s ease infinite; }
 
 /* ── Hero ── */
-.reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
-.reveal.in { opacity: 1; transform: none; }
 .eyebrow {
     font-family: var(--fm); font-size: 11px; letter-spacing: 2px;
     color: var(--g4); text-transform: uppercase;
@@ -632,7 +630,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0; margin-top: 72px; d
 .notif-success { background: #0a0a0a; border-color: #4ade80; color: #4ade80; }
 .notif-error   { background: #0a0a0a; border-color: #ff6b6b; color: #ff6b6b; }
 .notif-info    { background: #0a0a0a; border-color: #93c5fd; color: #93c5fd; }
-.reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+.reveal { opacity: 1; transform: none; }
 .reveal.in { opacity: 1; transform: none; }
 @keyframes fadeUp  { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
