@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! Suite
 // @namespace    http://tampermonkey.net/
-// @version      2026.03.28.3
+// @version      2026.03.29
 // @description  ok
 // @author       Bei
 // @match        https://osu.ppy.sh/*
@@ -575,6 +575,20 @@
 
 if (isOsuSite) {
     GM_addStyle(TB_CSS);
+}
+
+if (isOsuSite) {
+    const HEALTH_URL = Store.get('review_server_url', 'https://osu-suite.onrender.com').replace(/\/+$/, '') + '/health';
+    setInterval(() => {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: HEALTH_URL,
+            timeout: 8000,
+            onload: () => {},
+            onerror: () => {},
+            ontimeout: () => {},
+        });
+    }, 2 * 60 * 1000); // every 2 minutes
 }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2056,7 +2070,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
             async _insert(url) {
                 const ta = this.textarea;
                 if (!ta) return;
-                const MAX_BYTES = 2 * 1024 * 1024;
+                const MAX_BYTES = 3 * 1024 * 1024;
                 try {
                     const head = await new Promise((res, rej) => {
                         GM_xmlhttpRequest({
@@ -2066,7 +2080,7 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
                     });
                     const size = parseInt(head.responseHeaders?.match(/content-length:\s*(\d+)/i)?.[1] || '0');
                     if (size > MAX_BYTES) {
-                        notify(`✗ GIF too large (${(size/1024/1024).toFixed(1)} MB) — osu! limit ~2 MB`, 'error', 4000);
+                        notify(`✗ GIF too large (${(size/1024/1024).toFixed(1)} MB) — osu! limit ~3 MB`, 'error', 4000);
                         return;
                     }
                 } catch { /* HEAD failed — proceed anyway */ }
@@ -2301,10 +2315,10 @@ el.querySelector('#tb-review-token-save')?.addEventListener('click', () => {
                 });
             });
             if (r.status === 200) {
-                const user = JSON.parse(r.responseText);
-                Store.setSessionUser(user);
-                return user;
-            }
+    const user = JSON.parse(r.responseText);
+    Store.setSessionUser(user);
+    return user;
+}
         } catch {}
         Store.clearSession();
         return null;
