@@ -1356,6 +1356,19 @@ loadReviewsFromGitHub().then(function() {
     });
 });
 
+// ── Keep-alive self-ping ──────────────────────────────────────────────────────
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || ('http://localhost:' + PORT);
+setInterval(function() {
+  var pingUrl = new URL('/health', SELF_URL);
+  var mod = pingUrl.protocol === 'https:' ? https : http;
+  var req = mod.request(pingUrl, function(res) {
+    var d = ''; res.on('data', function(c) { d += c; });
+    res.on('end', function() { console.log('Self-ping OK:', res.statusCode); });
+  });
+  req.on('error', function(e) { console.warn('Self-ping failed:', e.message); });
+  req.end();
+}, 4 * 60 * 1000);
+
 process.on('SIGTERM', function() { server.close(function() { process.exit(0); }); });
 process.on('SIGINT',  function() { server.close(function() { process.exit(0); }); });
 process.on('uncaughtException',  function(e) { console.error('Uncaught:', e); process.exit(1); });
