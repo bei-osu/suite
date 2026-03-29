@@ -597,7 +597,7 @@ document.addEventListener('mousemove', function(e) {
     ringEl.style.left = rx + 'px';
     ringEl.style.top  = ry + 'px';
     requestAnimationFrame(animRing);
-;
+})();
 document.addEventListener('mouseover', function(e) {
     if (e.target.closest('a,button,input,textarea')) {
         curEl.style.width = '20px'; curEl.style.height = '20px';
@@ -1080,7 +1080,6 @@ function submitReview() {
 document.getElementById('player-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchPlayer(); });
 verifySession();
 
-})();
 `;
 
     html += '<\/script>\n</body>\n</html>';
