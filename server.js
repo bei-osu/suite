@@ -402,6 +402,7 @@ h1 em { font-style: italic; color: var(--g5); }
     padding: 44px; background: rgba(255,255,255,.03);
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     text-align: center; gap: 14px;
+    min-height: 280px;
 }
 .av-wrap {
     width: 76px; height: 76px; border-radius: 50%;
@@ -409,6 +410,7 @@ h1 em { font-style: italic; color: var(--g5); }
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; overflow: hidden;
     transition: all .3s;
+    margin: 0 auto;
 }
 .av-wrap img { width: 100%; height: 100%; object-fit: cover; display: none; }
 .av-wrap.loaded img { display: block; }
@@ -702,9 +704,9 @@ footer { border-top: 1px solid var(--line); padding: 48px 0; margin-top: 80px; d
             </ul>
         </div>
         <div class="login-action">
-            <div id="state-out">
+            <div id="state-out" style="display:flex;flex-direction:column;align-items:center;gap:14px;">
                 <div class="av-wrap" id="av-out"><span class="av-icon">♪</span><img id="av-out-img" alt=""></div>
-                <div style="margin-top:14px;">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
                     <p style="font-size:13px;color:var(--g4);margin-bottom:18px;">Not logged in.</p>
                     <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Login with osu!</button>
                     <div class="write-err" id="login-err" style="margin-top:9px;"></div>
@@ -1283,7 +1285,7 @@ async function loadReviews(uid) {
             el.innerHTML =
                 '<div class="review-top">' +
                     '<div class="review-author">' +
-                        '<img class="review-avatar" src="https://a.ppy.sh/' + H(rv.authorUserId) + '" onerror="this.style.background=\'#1a1a1a\'" alt="">' +
+                        '<img class="review-avatar" src="https://a.ppy.sh/' + H(rv.authorUserId) + '" alt="">' +
                         '<div>' +
                             '<a class="review-name" href="https://osu.ppy.sh/users/' + H(rv.authorUserId) + '" target="_blank">' + H(rv.authorUsername) + '</a>' +
                             '<div class="review-date">' + fmtDate(rv.createdAt) + (rv.updatedAt ? ' · edited' : '') + '</div>' +
