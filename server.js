@@ -1283,7 +1283,7 @@ async function loadReviews(uid) {
             el.innerHTML =
                 '<div class="review-top">' +
                     '<div class="review-author">' +
-                        '<img class="review-avatar" src="https://a.ppy.sh/' + H(rv.authorUserId) + '" onerror="this.src=\'data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\'><rect width=\\'30\\' height=\\'30\\' fill=\\'%231a1a1a\\'/></svg>\\'" alt="">' +
+                        '<img class="review-avatar" src="https://a.ppy.sh/' + H(rv.authorUserId) + '" onerror="this.style.background=\'#1a1a1a\'" alt="">' +
                         '<div>' +
                             '<a class="review-name" href="https://osu.ppy.sh/users/' + H(rv.authorUserId) + '" target="_blank">' + H(rv.authorUsername) + '</a>' +
                             '<div class="review-date">' + fmtDate(rv.createdAt) + (rv.updatedAt ? ' · edited' : '') + '</div>' +
