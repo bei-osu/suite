@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! Suite
 // @namespace    http://tampermonkey.net/
-// @version      2026.03.29.1
+// @version      2026.03.30
 // @description  ok
 // @author       Bei
 // @match        https://osu.ppy.sh/*
@@ -599,24 +599,6 @@
             overflow: hidden !important;
         }
     `;
-
-if (isOsuSite) {
-    GM_addStyle(TB_CSS);
-}
-
-if (isOsuSite) {
-    const HEALTH_URL = Store.get('review_server_url', 'https://osu-suite.onrender.com').replace(/\/+$/, '') + '/health';
-    setInterval(() => {
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: HEALTH_URL,
-            timeout: 8000,
-            onload: () => {},
-            onerror: () => {},
-            ontimeout: () => {},
-        });
-    }, 2 * 60 * 1000); // every 2 minutes
-}
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  SHARED UTILITIES
